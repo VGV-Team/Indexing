@@ -1,6 +1,7 @@
-import sqlite3
 import os
+import sqlite3
 import time
+
 from Preprocessor import Preprocessor
 
 
@@ -33,7 +34,7 @@ class InvertedIndex:
         try:
             conn = sqlite3.connect(self.DB_NAME)
             c = conn.cursor()
-            c.execute("SELECT word FROM IndexWord WHERE word='"+word+"'")
+            c.execute("SELECT word FROM IndexWord WHERE word='" + word + "'")
             rows = c.fetchall()
             if len(rows) == 0:
                 # Word does not exist yet, add it
@@ -75,13 +76,14 @@ class InvertedIndex:
                 if os.path.isfile(file_path) and file_path.endswith(".html"):
                     with open(file_path, encoding="utf8") as f:
                         page = self.preprocessor.preprocess_webpage(f.read())
-                        document = self.preprocessor.preprocess_document(page)
+                        document = self.preprocessor.preprocess_and_clean_text(page)
                         text = set(self.preprocessor.preprocess_text(page))
                         for word in text:
                             frequency = document.count(word)
                             indexes = ",".join([str(i) for i, x in enumerate(document) if x == word])
                             posting = (word, file_path, frequency, indexes)
                             self.add_posting(word, posting)
+
         print("DONE!")
 
     def construct_result(self, posting, snippet_range=3):
@@ -92,12 +94,13 @@ class InvertedIndex:
         frequency = str(posting[2])
         indexes = [int(x) for x in posting[3].split(",")]
         snippets = []
+
         with open(document, encoding="utf8") as f:
             page = self.preprocessor.preprocess_webpage(f.read())
-            doc = self.preprocessor.preprocess_document(page)
+            doc = page.strip().split()
             for i in indexes:
-                i_from = max(i-snippet_range, 0)
-                i_to = min(i+snippet_range+1, len(doc)-1)
+                i_from = max(i - snippet_range, 0)
+                i_to = min(i + snippet_range + 1, len(doc) - 1)
                 snippets.append(doc[i_from:i_to])
         snippets = " ... ".join([" ".join(x) for x in snippets])
         return frequency, document, snippets
@@ -139,15 +142,16 @@ class InvertedIndex:
         # SORT AND PRINT
         results = sorted(merged_results, key=lambda res: res[0], reverse=True)
         for res in results:
-            print(str(res[0]) + "\t" + res[1] + "\t" + res[2])
+            print("{0: <11} {1: <40} {2: <}".format(str(res[0]), res[1], res[2]))
 
     def query(self, query):
         query = self.preprocessor.preprocess_text(query)
         print(query)
         start_time = time.time()
-        print("Frequencies\tDocument\tSnippet")
-        print("-----------\t--------\t----------------------------")
+        print("{0: <11} {1: <40} {2: <}".format("Frequencies", "Document", "Snippet"))
+        print("{0: <11} {1: <80} {2: <}".format("-----------", "--------------------------------------------------",
+                                                "----------------------------------------------------------"))
         self.search_words(query)
         print("**************")
-        print("Took " + str(time.time()-start_time) + " seconds.")
+        print("Took " + str(time.time() - start_time) + " seconds.")
         print("**************")

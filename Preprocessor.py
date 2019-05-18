@@ -27,12 +27,21 @@ class Preprocessor:
         s = [x for x in s if len(x) > 0]
         return s
 
+    def preprocess_and_clean_text(self, text):
+        # Remove whitespace, to lowercase, split by words, remove punctuations
+        s = text.strip().lower().split()
+        s = [self.remove_punctuations_from_word(x) for x in s]
+        return s
+
     # Used for document preprocessing - document is then used to count frequency of words -
     # should have same word positions as original webpage text
     def preprocess_document(self, text):
         s = text.lower()
-        s = word_tokenize(s)
+        s = self.tokenize_document(s)
         return s
+
+    def tokenize_document(self, text):
+        return word_tokenize(text)
 
     def remove_punctuations_from_word(self, word):
         w = word

@@ -105,27 +105,60 @@ class InvertedIndex:
         snippets = " ... ".join([" ".join(x) for x in snippets])
         return frequency, document, snippets
 
-    def search_words(self, words):
+    def process_all_files(self, words):
         results = {}
-        try:
-            conn = sqlite3.connect(self.DB_NAME)
-            c = conn.cursor()
-            for word in words:
-                word = self.preprocessor.remove_punctuations_from_word(word)
-                c.execute("SELECT * FROM Posting WHERE word='" + word + "'")
-                rows = c.fetchall()
-                for row in rows:
-                    res = self.construct_result(row)
-                    if res[1] in results:
-                        results[res[1]].append(res)
-                    else:
-                        results[res[1]] = [res]
-        except Exception as e:
-            print("search_word ERROR")
-            print(word)
-            print(e)
-        finally:
-            conn.close()
+        path = "data"
+        folders = ["e-prostor.gov.si", "e-uprava.gov.si", "evem.gov.si", "podatki.gov.si"]
+        for folder in folders:
+            # print(folder)
+            files = os.listdir(path + "/" + folder)
+            for file in files:
+                file_path = path + "/" + folder + "/" + file
+                # print(file_path)
+                if os.path.isfile(file_path) and file_path.endswith(".html"):
+                    with open(file_path, encoding="utf8") as f:
+                        page = self.preprocessor.preprocess_webpage(f.read())
+                        document = self.preprocessor.preprocess_and_clean_text(page)
+                        text = set(self.preprocessor.preprocess_text(page))
+                        for word in text:
+                            if word not in words:
+                                continue
+                            frequency = document.count(word)
+                            if frequency == 0:
+                                continue
+                            indexes = ",".join([str(i) for i, x in enumerate(document) if x == word])
+                            posting = (word, file_path, frequency, indexes)
+                            res = self.construct_result(posting)
+                            if res[1] in results:
+                                results[res[1]].append(res)
+                            else:
+                                results[res[1]] = [res]
+        return results
+
+    def search_words(self, words, use_index):
+        if use_index:
+            results = {}
+            try:
+                conn = sqlite3.connect(self.DB_NAME)
+                c = conn.cursor()
+                for word in words:
+                    word = self.preprocessor.remove_punctuations_from_word(word)
+                    c.execute("SELECT * FROM Posting WHERE word='" + word + "'")
+                    rows = c.fetchall()
+                    for row in rows:
+                        res = self.construct_result(row)
+                        if res[1] in results:
+                            results[res[1]].append(res)
+                        else:
+                            results[res[1]] = [res]
+            except Exception as e:
+                print("search_word ERROR")
+                print(word)
+                print(e)
+            finally:
+                conn.close()
+        else:
+            results = self.process_all_files(words)
 
         # MERGE BY DOCUMENT
         merged_results = []
@@ -142,16 +175,16 @@ class InvertedIndex:
         # SORT AND PRINT
         results = sorted(merged_results, key=lambda res: res[0], reverse=True)
         for res in results:
-            print("{0: <11} {1: <40} {2: <}".format(str(res[0]), res[1], res[2]))
+            print("{0: <11} {1: <50} {2: <}".format(str(res[0]), res[1], res[2]))
 
-    def query(self, query):
+    def query(self, query, use_index):
         query = self.preprocessor.preprocess_text(query)
         print(query)
         start_time = time.time()
-        print("{0: <11} {1: <40} {2: <}".format("Frequencies", "Document", "Snippet"))
-        print("{0: <11} {1: <80} {2: <}".format("-----------", "--------------------------------------------------",
+        print("{0: <11} {1: <50} {2: <}".format("Frequencies", "Document", "Snippet"))
+        print("{0: <11} {1: <50} {2: <}".format("-----------", "--------------------------------------------------",
                                                 "----------------------------------------------------------"))
-        self.search_words(query)
+        self.search_words(query, use_index)
         print("**************")
         print("Took " + str(time.time() - start_time) + " seconds.")
         print("**************")
